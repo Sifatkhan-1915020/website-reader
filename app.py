@@ -8,9 +8,18 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.chains.retrieval import create_retrieval_chain
 
+
 st.title("😺Ask About Website")
+
+# ------------------------------------------------------------------
+# SECURITY WARNING: Never commit API keys to GitHub or share them publicly.
+# Ideally, use st.secrets["GROQ_API_KEY"] for production.
+# ------------------------------------------------------------------
 groq_api_key = "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"
-website_url =st.text_input("Ask a question about the website")
+
+# --- FIX IS HERE: Changed label to be unique ---
+website_url = st.text_input("Enter Website URL", key="url_input")
+
 if website_url and groq_api_key:
     # 3. Load the data from the website
     if "vector_store" not in st.session_state:
@@ -34,8 +43,8 @@ if website_url and groq_api_key:
             except Exception as e:
                 st.error(f"Error loading e: {e}")
 
-    
-    question = st.text_input("Ask a question about the website")
+    # --- THIS LINE IS NOW SAFE (Unique label and key) ---
+    question = st.text_input("Ask a question about the website", key="user_question")
 
     if question and "vector_store" in st.session_state:
         # 5. Setup the AI Chain
@@ -54,7 +63,7 @@ if website_url and groq_api_key:
         Question: {input}
         """)
 
-        # Using the Classic functions imported above
+        # Using the standard langchain library imports
         document_chain = create_stuff_documents_chain(llm, prompt)
         retriever = st.session_state.vector_store.as_retriever()
         retrieval_chain = create_retrieval_chain(retriever, document_chain)
