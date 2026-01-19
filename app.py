@@ -8,22 +8,34 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.chains.retrieval import create_retrieval_chain
 
-
 st.title("😺Ask About Website")
 
 # ------------------------------------------------------------------
 # SECURITY WARNING: Never commit API keys to GitHub or share them publicly.
-# Ideally, use st.secrets["GROQ_API_KEY"] for production.
 # ------------------------------------------------------------------
 groq_api_key = "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"
 
-# --- FIX IS HERE: Changed label to be unique ---
-website_url = st.text_input("Enter Website URL", key="url_input")
+# --- STEP 1: DEFINE THE RESET FUNCTION ---
+# This runs only when the user changes the URL
+def reset_context():
+    if "vector_store" in st.session_state:
+        del st.session_state.vector_store
+    if "user_question" in st.session_state:
+        st.session_state.user_question = ""
+
+# --- STEP 2: INPUT WITH CALLBACK ---
+# The on_change parameter connects the input to the reset function
+website_url = st.text_input(
+    "Enter Website URL", 
+    key="url_input", 
+    on_change=reset_context
+)
 
 if website_url and groq_api_key:
     # 3. Load the data from the website
+    # This check ensures we don't re-process if the data is already there
     if "vector_store" not in st.session_state:
-        with st.spinner("Processing....."):
+        with st.spinner("Processing new website..."):
             try:
                 # Load the raw text
                 loader = WebBaseLoader(website_url)
@@ -36,14 +48,15 @@ if website_url and groq_api_key:
                 # Create embeddings (Using HuggingFace so it runs locally)
                 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
                 
+                # Store in vector db
                 vector_store = Chroma.from_documents(documents=splits, embedding=embeddings)
                 
                 st.session_state.vector_store = vector_store
-                st.success("Process done!....")
+                st.success("Website processed successfully!")
             except Exception as e:
-                st.error(f"Error loading e: {e}")
+                st.error(f"Error loading website: {e}")
 
-    # --- THIS LINE IS NOW SAFE (Unique label and key) ---
+    # 4. Ask the Question
     question = st.text_input("Ask a question about the website", key="user_question")
 
     if question and "vector_store" in st.session_state:
@@ -63,12 +76,15 @@ if website_url and groq_api_key:
         Question: {input}
         """)
 
-        # Using the standard langchain library imports
+        # Using standard langchain chains
         document_chain = create_stuff_documents_chain(llm, prompt)
         retriever = st.session_state.vector_store.as_retriever()
         retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
         # 6. Get the Answer
         with st.spinner("Thinking..."):
-            response = retrieval_chain.invoke({"input": question})
-            st.write(response["answer"])
+            try:
+                response = retrieval_chain.invoke({"input": question})
+                st.write(response["answer"])
+            except Exception as e:
+                st.error(f"Error generating answer: {e}")
